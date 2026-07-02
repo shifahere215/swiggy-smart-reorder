@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  name               String?
+  UserItemProfiles   UserItemProfile[]
+  SessionEvents      SessionEvent[]
+  AnomalySessions    AnomalySession[]
+}
+
+model Catalog {
+  id                 String             @id @default(uuid())
+  name               String
+  price              Float
+  image              String?
+  category           String?
+  is_perishable      Boolean            @default(false)
+  typical_shelf_days Int?
+  UserItemProfiles   UserItemProfile[]
+}
+
+model UserItemProfile {
+  id                 String             @id @default(uuid())
+  user_id            String
+  sku_id             String
+  avg_days_between   Float              @default(7.0)
+  last_purchased_at  DateTime           @default(now())
+  purchase_count     Int                @default(0)
+  next_nudge_at      DateTime?
+  dismiss_streak     Int                @default(0)
+  cycle_multiplier   Float              @default(1.0)
+  
+  user               User               @relation(fields: [user_id], references: [id])
+  catalog            Catalog            @relation(fields: [sku_id], references: [id])
+  NudgeLogs          NudgeLog[]
+
+  @@index([user_id, next_nudge_at])
+}
+
+model NudgeLog {
+  id                   String           @id @default(uuid())
+  user_item_profile_id String
+  nudge_type           String           // periodic | expiry | session_card | push
+  sent_at              DateTime         @default(now())
+  outcome              String?          // added_to_cart | purchased | dismissed | snoozed | expired
+  outcome_at           DateTime?
+  surface              String           // in_app_card | push_notification
+  anomaly_session_id   String?
+
+  userItemProfile      UserItemProfile  @relation(fields: [user_item_profile_id], references: [id])
+  
+  @@index([sent_at])
+}
+
+model SessionEvent {
+  id                 String           @id @default(uuid())
+  user_id            String
+  started_at         DateTime         @default(now())
+  is_incognito       Boolean          @default(false)
+  order_value        Float?
+  item_count         Int?
+  anomaly_flagged    Boolean          @default(false)
+  anomaly_session_id String?
+
+  user               User             @relation(fields: [user_id], references: [id])
+  AnomalySessions    AnomalySession[]
+
+  @@index([started_at])
+}
+
+model AnomalySession {
+  id                   String           @id @default(uuid())
+  user_id              String
+  session_event_id     String
+  label                String?          // party | festive | illness | bulk | unlabelled
+  skus_purchased       String           // JSON string array of SKU IDs
+  nudges_paused_until  DateTime?
+  label_items_surfaced Boolean          @default(false)
+  created_at           DateTime         @default(now())
+
+  user                 User             @relation(fields: [user_id], references: [id])
+  sessionEvent         SessionEvent     @relation(fields: [session_event_id], references: [id])
+}

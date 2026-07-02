@@ -1,65 +1,126 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from 'react';
+import { Sparkles, Plus, X } from 'lucide-react';
 
 export default function Home() {
+  const [nudges, setNudges] = useState<any[]>([]);
+  const [activeAnomaly, setActiveAnomaly] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/nudges')
+      .then(r => r.json())
+      .then(data => {
+        if (data.activeAnomaly) {
+          setActiveAnomaly(data.activeAnomaly);
+        } else {
+          setNudges(data.nudges || []);
+        }
+      });
+    
+    fetch('/api/catalog')
+      .then(r => r.json())
+      .then(data => setCatalog(data.items || []));
+  }, []);
+
+  const handleNudgeAction = async (profileId: string, action: 'add' | 'dismiss') => {
+    if (action === 'add') {
+      const badge = document.getElementById('cart-badge');
+      if (badge) badge.innerText = (parseInt(badge.innerText) + 1).toString();
+      
+      // Mark added
+      setNudges(prev => prev.map(n => n.id === profileId ? { ...n, added: true } : n));
+    } else {
+      setNudges(prev => prev.filter(n => n.id !== profileId));
+    }
+    
+    await fetch('/api/nudges/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId, action })
+    });
+  };
+
+  const handleAddToCart = () => {
+    const badge = document.getElementById('cart-badge');
+    if (badge) badge.innerText = (parseInt(badge.innerText) + 1).toString();
+  };
+
+  const showNudgeCard = nudges.length > 0 && !activeAnomaly;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <>
+      <div className="header">
+        <h1>Instamart</h1>
+        <div><UserAvatar /></div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {activeAnomaly && (
+          <div style={{ margin: '16px', padding: '16px', backgroundColor: '#dbeafe', borderRadius: '12px' }}>
+            <p style={{ color: '#1e3a8a', fontSize: '0.9rem' }}>
+              <strong>Party Mode!</strong> Showing suggestions for {activeAnomaly}.
+            </p>
+          </div>
+        )}
+
+        {showNudgeCard && (
+          <div className="nudge-card">
+            <div className="nudge-header">
+              <h2><Sparkles size={18} /> Smart Reorder</h2>
+              <button className="btn-dismiss" onClick={() => setNudges([])}>Dismiss all</button>
+            </div>
+            <div className="nudge-list">
+              {nudges.map(nudge => (
+                <div key={nudge.id} className={`nudge-item ${nudge.added ? 'added' : ''}`}>
+                  <div className="nudge-item-info">
+                    <h3>{nudge.catalog.name}</h3>
+                    <p>Usually every {Math.round(nudge.avg_days_between)} days · last bought {nudge.daysSince}d ago</p>
+                  </div>
+                  <div className="nudge-actions">
+                    <button 
+                      className="btn-add" 
+                      onClick={() => handleNudgeAction(nudge.id, 'add')}
+                      disabled={nudge.added}
+                    >
+                      {nudge.added ? 'Added' : 'Add to cart'}
+                    </button>
+                    {!nudge.added && (
+                      <button className="btn-dismiss" onClick={() => handleNudgeAction(nudge.id, 'dismiss')}>
+                        Not right now
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="feed">
+          <h2>All Categories</h2>
+          <div className="catalog-grid">
+            {catalog.map(item => (
+              <div key={item.id} className="catalog-item">
+                <h3>{item.name}</h3>
+                <p>₹{item.price}</p>
+                <button className="btn-add" style={{ width: '100%' }} onClick={handleAddToCart}>
+                  Add <Plus size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+    </>
   );
+}
+
+function UserAvatar() {
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontSize: 12, fontWeight: 'bold' }}>JD</span>
+    </div>
+  )
 }

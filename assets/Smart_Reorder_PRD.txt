@@ -1,0 +1,433 @@
+PRODUCT REQUIREMENTS DOCUMENT
+Smart Reorder / Cart Refill with Nudges
+Kirana · Instamart · V1 MVP
+
+Product
+Instamart — Kirana initiative
+Feature
+Smart Reorder / Cart Refill with Nudges
+Version
+V1 MVP
+Status
+Draft — for engineering handoff
+Author
+Product, Kirana team
+Last updated
+May 2026
+
+One-line summary
+Smart Reorder is a personalised nudge engine layered on top of Instamart's existing purchase history — it surfaces the right grocery items at the right time, learns each user's rhythm, handles bulk-order anomalies gracefully, and offers a private incognito mode for sensitive purchases.
+
+1. Background & problem statement
+Instamart already surfaces past orders through its 'Order again' and 'Reorder' flows, grouped by category. This reduces decision fatigue and gives high-intent users a direction for their session. However, the experience is static — it shows everything the user has ever bought without any sense of what they need right now.
+
+Three friction points persist for regular users:
+	•	Forgetting to restock essentials (milk, bread, vegetables) until they run out mid-week.
+	•	Over-buying during a single session to compensate for poor recall of what is actually needed.
+	•	No way to mark sensitive or private purchases as off-limits for personalisation.
+
+Smart Reorder addresses all three by converting the passive order-history list into a proactive, personalised grocery companion — one that nudges at the right moment and backs off intelligently when not needed.
+
+2. Goals
+2.1  User goals
+	•	Never run out of regularly purchased essentials.
+	•	Spend less mental effort deciding what to reorder each session.
+	•	Trust that the system is learning their habits, not surveilling them.
+
+2.2  Business goals
+	•	Increase average order frequency for high-intent, returning users.
+	•	Improve basket predictability for supply-side planning.
+	•	Establish a personalisation layer that can be extended to promotions and substitutions in V2.
+
+2.3  Non-goals (V1)
+	•	No ML model — frequency is a rolling average of purchase gaps, computed at query time.
+	•	No substitution suggestions or cross-sell nudges.
+	•	No integration with external calendar or event data.
+	•	No anomaly-driven promotions or targeted discounts.
+
+3. Target users
+
+Persona
+Description
+The regular weekly buyer
+Orders groceries 2–4 times per week. Buys the same core set of items (dairy, produce, snacks) with minor variations. Primary beneficiary of the periodic nudge.
+The bulk occasional buyer
+Orders less frequently but in large quantities. Triggers the anomaly detection path. Benefits from labelling and suppressed regular nudges post-bulk.
+The privacy-conscious user
+Occasionally buys items they prefer not to have tracked (personal care, health, sensitive categories). Benefits from incognito mode.
+
+4. Feature overview
+Smart Reorder surfaces at two touch points and is governed by a three-state model per item.
+
+4.1  Touch points
+	•	In-app nudge card — appears below the search bar on the home screen, above the existing category feed, on every session open.
+	•	Push notification — sent when a high-frequency item is overdue based on the user's purchase rhythm, while the app is backgrounded.
+
+4.2  Item states
+
+State
+Description
+Active
+Item is within normal cycle window. No nudge shown.
+Nudge-eligible
+days_since_purchase ≥ avg_days_between × cycle_multiplier. Item surfaced in the nudge card or push notification.
+Suppressed
+Nudge was dismissed twice consecutively. cycle_multiplier increases by 0.5×. Item returns to Active state.
+
+5. Functional requirements
+
+5.1  Frequency model
+The frequency model is a per-user, per-SKU rolling average — no batch ML pipeline required for V1.
+
+ID
+Requirement
+Priority
+Owner
+FR-01
+On every order completion (non-incognito), update avg_days_between for each purchased SKU using a rolling average weighted toward recent purchases.
+Must
+Backend
+FR-02
+Compute days_since_last_purchase at query time as now() − last_purchased_at.
+Must
+Backend
+FR-03
+Compute nudge_urgency_score = days_since / (avg_days_between × cycle_multiplier). Surface top 3–5 items by score descending in the nudge card.
+Must
+Backend
+FR-04
+For perishable items (is_perishable = true), also compute expiry_proximity = days_since / typical_shelf_days. Trigger the expiry nudge path when expiry_proximity ≥ 0.8, regardless of urgency score.
+Must
+Backend
+FR-05
+Require a minimum of 3 historical purchases before a SKU is eligible for nudging.
+Must
+Backend
+
+5.2  In-app nudge card
+
+ID
+Requirement
+Priority
+Owner
+FR-06
+Display the nudge card on every session open if at least one nudge-eligible item exists.
+Must
+Frontend
+FR-07
+Each item row shows: product name, sub-reason (e.g. 'Usually every 3 days · last bought 3d ago'), and an Add to cart button.
+Must
+Frontend
+FR-08
+Tapping Add marks the item as added, dims the row with a check icon, resets its timer, and clears dismiss_streak.
+Must
+Frontend + Backend
+FR-09
+The card is dismissible via a Dismiss link in the top-right corner. Each dismiss increments dismiss_streak. On the second consecutive dismiss, cycle_multiplier increases by 0.5 and dismiss_streak resets to 0.
+Must
+Frontend + Backend
+FR-10
+If all items in the card are added or dismissed, the card collapses smoothly from the feed.
+Should
+Frontend
+
+5.3  Push notification
+
+ID
+Requirement
+Priority
+Owner
+FR-11
+Send a push notification when a single high-frequency item (purchase_count ≥ 5, avg_days_between ≤ 7) exceeds its expected cycle by more than 1 day.
+Must
+Backend
+FR-12
+Notification body: '{Item name} might be running low — you usually restock every {N} days.'
+Must
+Backend
+FR-13
+Three action buttons: Add to cart (deep-links to cart), Not yet (snoozes nudge by 24 hours), Remind later (prompts user for a time).
+Must
+Frontend
+FR-14
+A maximum of one push notification per user per day across all SKUs. Surface the highest-urgency item only.
+Must
+Backend
+FR-15
+If the user has disabled push notifications at the OS level, suppress push and rely solely on the in-app card.
+Must
+Backend
+
+5.4  Anomaly detection
+
+ID
+Requirement
+Priority
+Owner
+FR-16
+At checkout, compare session item_count to the user's 90-day rolling average. Flag as anomaly if item_count ≥ 2× the average.
+Must
+Backend
+FR-17
+On anomaly detection, surface a dismissible bottom sheet before order confirmation: 'Bigger basket than usual — stocking up for something?'
+Must
+Frontend
+FR-18
+Bottom sheet offers four label options: Party / get-together, Festive occasion, Not feeling well, Bulk stock-up. Plus a 'Skip — don't label this order' link.
+Must
+Frontend
+FR-19
+On label selection, write an anomaly_session record, suppress normal nudges for 48 hours, and surface label-relevant items in the next session's nudge card instead.
+Should
+Backend
+FR-20
+If the same anomaly label fires 3+ times, remember the label-to-items mapping and proactively suggest those items next time the same label is triggered.
+Could
+Backend
+
+5.5  Incognito mode
+
+ID
+Requirement
+Priority
+Owner
+FR-21
+A toggle is available in the cart or session header to activate incognito mode before adding items.
+Must
+Frontend
+FR-22
+When incognito is active, the status bar changes to a dark/neutral theme and displays 'Incognito on · this order won't be remembered.'
+Must
+Frontend
+FR-23
+While incognito is active, no writes are made to user_item_profile, nudge_log, or anomaly_session for any item in that session.
+Must
+Backend
+FR-24
+The order is fulfilled and charged normally — incognito only affects the personalisation model, not fulfilment.
+Must
+Backend
+FR-25
+Incognito state resets to off at the start of every new session.
+Must
+Backend
+
+6. Non-functional requirements
+
+Area
+Requirement
+Latency
+Nudge card items must be computed and returned in ≤ 200ms added to the home screen payload. Frequency model computation is a simple arithmetic query — no separate service call.
+Availability
+Nudge service degradation must fail silently. If the nudge card cannot load, the home screen renders normally without the card.
+Privacy
+Incognito session data must not be written to any analytics, BI, or data warehouse pipeline. The is_incognito flag on session_event is the gate.
+Scale
+The user_item_profile table will hold approximately (active users × avg distinct SKUs ordered). Index on (user_id, next_nudge_at) for efficient per-session lookups.
+Consent
+Push notification permission must be requested through the standard OS prompt. Smart Reorder must not prompt users who have previously denied notification permissions.
+
+7. Data schema (V1)
+Four tables. All writes gated on session_event.is_incognito = false.
+
+user_item_profile
+Field
+Type
+Notes
+id
+uuid
+Primary key
+user_id
+uuid
+FK → users
+sku_id
+uuid
+FK → catalog
+avg_days_between
+float
+Rolling average of purchase gaps in days
+last_purchased_at
+timestamptz
+Most recent non-incognito purchase
+purchase_count
+int
+Total non-incognito orders (min 3 to nudge)
+next_nudge_at
+timestamptz
+Indexed — scheduled nudge time
+dismiss_streak
+int
+Consecutive dismissals — resets on add
+cycle_multiplier
+float
+Default 1.0 · +0.5 per dismiss streak reset
+is_perishable
+bool
+Drives expiry proximity nudge path
+typical_shelf_days
+int
+Null for non-perishables
+
+nudge_log
+Field
+Type
+Notes
+id
+uuid
+Primary key
+user_item_profile_id
+uuid
+FK → user_item_profile
+nudge_type
+enum
+periodic | expiry | session_card | push
+sent_at
+timestamptz
+Indexed
+outcome
+enum
+added_to_cart | purchased | dismissed | snoozed | expired
+outcome_at
+timestamptz
+Null until user acts
+surface
+enum
+in_app_card | push_notification
+anomaly_session_id
+uuid
+Null unless nudge was paused by anomaly
+
+session_event
+Field
+Type
+Notes
+id
+uuid
+Primary key
+user_id
+uuid
+FK → users
+started_at
+timestamptz
+Indexed
+is_incognito
+bool
+Gates all model writes for this session
+order_value
+numeric
+Total cart value at checkout
+item_count
+int
+Compared against 90-day avg for anomaly check
+anomaly_flagged
+bool
+True when item_count ≥ 2× rolling avg
+anomaly_session_id
+uuid
+Populated if bottom sheet was triggered
+
+anomaly_session
+Field
+Type
+Notes
+id
+uuid
+Primary key
+user_id
+uuid
+FK → users
+session_event_id
+uuid
+FK → session_event
+label
+enum
+party | festive | illness | bulk | unlabelled
+skus_purchased
+uuid[]
+Array of SKU IDs in session
+nudges_paused_until
+timestamptz
+Normal nudges suppressed until this timestamp
+label_items_surfaced
+bool
+Whether label items were shown next session
+created_at
+timestamptz
+
+
+8. Key user flows
+
+8.1  Normal nudge — add to cart
+User opens app → nudge card renders above category feed → user taps Add on an eligible item → item dims with check icon → user_item_profile.next_nudge_at recalculated → nudge_log.outcome = added_to_cart.
+
+8.2  Nudge dismissed — back-off applied
+User taps Dismiss → dismiss_streak incremented → if streak = 2: cycle_multiplier += 0.5, streak resets → nudge_log.outcome = dismissed → card collapses or remaining items continue showing.
+
+8.3  Push notification received
+Background job fires when next_nudge_at ≤ now() AND push eligible → OS notification sent → user taps Add to cart → deep-linked to cart with item pre-added → outcome written to nudge_log.
+
+8.4  Anomaly detected at checkout
+User proceeds to checkout with 2×+ typical item count → anomaly_flagged = true → bottom sheet surfaces → user selects label (or skips) → anomaly_session created → nudges_paused_until = now() + 48 hours → next session surfaces label-relevant items in nudge card instead of regular rhythm items.
+
+8.5  Incognito session
+User toggles incognito before adding items → is_incognito = true on session_event → all model writes blocked for session duration → order fulfilled normally → incognito resets to false at next session open.
+
+9. Success metrics
+
+Metric
+Definition & target
+Nudge card CTR
+% of sessions where user adds ≥ 1 item from the nudge card. Target: > 25% within 30 days of launch.
+Order frequency delta
+Change in average orders per week for users exposed to nudges vs. control. Target: +10% in 60 days.
+Dismiss rate
+% of nudge card impressions that result in a dismiss. Watch for > 40% — signals poor item selection.
+Cycle multiplier distribution
+Track median cycle_multiplier across the user base. Creeping toward 2.0+ = nudges are annoying.
+Anomaly label rate
+% of anomaly sessions where user selects a label (vs. skipping). Target: > 50% — validates the bottom sheet design.
+Incognito usage rate
+% of sessions with incognito active. Provides a signal of user trust and privacy concern. No target — purely observational.
+
+10. Open questions
+
+Q1 — Minimum purchase count threshold
+FR-05 sets 3 purchases as the minimum before nudging. Is this too aggressive for slow-moving categories (e.g. supplements, cleaning products)? Consider a category-level override.
+
+Q2 — Notification timing windows
+When should push notifications be gated by time-of-day? A nudge for milk at 2 AM is unhelpful. Define a send window (e.g. 8 AM–9 PM local time) and confirm with legal / user research.
+
+Q3 — Incognito discoverability
+Where exactly does the incognito toggle live? Cart header, account menu, or a long-press on the cart icon? This needs a UX decision before frontend implementation.
+
+Q4 — Anomaly suppression window
+48 hours of nudge suppression post-anomaly may be too short for a festive event (e.g. Diwali stocking) and too long for a one-off dinner party. Consider label-specific suppression windows.
+
+11. Out of scope — V2 and beyond
+	•	ML-based demand forecasting replacing the rolling average model.
+	•	Cross-category substitution suggestions (e.g. brand A is out of stock, suggest brand B).
+	•	Anomaly-triggered promotions (party mode surfaces bulk discounts on relevant SKUs).
+	•	Shared household lists — nudges aggregated across multiple user profiles.
+	•	Integration with calendar events or public holidays to pre-empt anomaly sessions.
+	•	Voice-based reorder through Alexa or Google Assistant.
+
+12. Appendix — nudge suppression state machine
+The following rules govern when a nudge for a given item is shown, suppressed, or rescheduled. All rules are evaluated per user per SKU.
+
+Trigger
+Effect
+Item added to cart / purchased
+next_nudge_at = last_purchased_at + avg_days_between × cycle_multiplier. dismiss_streak = 0.
+Nudge dismissed (1st time)
+dismiss_streak = 1. next_nudge_at unchanged — will re-show next session.
+Nudge dismissed (2nd consecutive time)
+cycle_multiplier += 0.5. dismiss_streak = 0. next_nudge_at recalculated.
+Anomaly session active
+All regular nudges suppressed until nudges_paused_until. Label-relevant items surface instead.
+Incognito session active
+No nudge reads or writes for the session. next_nudge_at unchanged.
+Push notification — Not yet
+next_nudge_at = now() + 24 hours. No streak change.
+Push notification — Remind later
+next_nudge_at = user-selected time. No streak change.
+
