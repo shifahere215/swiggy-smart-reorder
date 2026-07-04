@@ -32,8 +32,6 @@ A toggle in the cart allows you to activate incognito mode. The theme shifts, an
 ### Anomaly Bottom Sheet
 If you check out with significantly more items than your 90-day average, an anomaly sheet surfaces to categorize the bulk order.
 
-![Anomaly Sheet](assets/screenshot_anomaly_sheet.png)
-
 ### Party Mode (Cart Similarity)
 If you add a few items that match a previously categorized anomaly (like a "House Party"), a Party Mode suggestion card appears to help you quick-add the rest!
 
