@@ -36,6 +36,7 @@ model UserItemProfile {
   next_nudge_at      DateTime?
   dismiss_streak     Int                @default(0)
   cycle_multiplier   Float              @default(1.0)
+  sub_profile        String?            // e.g. mother, friend, boyfriend
   
   user               User               @relation(fields: [user_id], references: [id])
   catalog            Catalog            @relation(fields: [sku_id], references: [id])
@@ -80,6 +81,7 @@ model AnomalySession {
   user_id              String
   session_event_id     String
   label                String?          // party | festive | illness | bulk | unlabelled
+  name                 String?          // e.g. Diwali Pack, House Party
   skus_purchased       String           // JSON string array of SKU IDs
   nudges_paused_until  DateTime?
   label_items_surfaced Boolean          @default(false)
