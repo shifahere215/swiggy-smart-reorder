@@ -6,9 +6,10 @@ This MVP is built for a mobile-first grocery app (like Instamart or Kirana) base
 
 ## Key Features
 
-1. **In-app Nudge Card**: Proactively suggests items you usually buy, based on a rolling average of your purchase gaps.
-2. **Anomaly Detection**: Detects unusually large orders (e.g., bulk stock-ups or parties) at checkout and asks you to label them. If labelled, normal nudges are paused so your everyday recommendations don't get skewed.
+1. **In-app Nudge Card**: Proactively suggests items you usually buy. Supports multi-user households by personalizing nudges for specific sub-profiles (e.g., "Mother's tea leaves").
+2. **Anomaly Detection & Party Mode**: Detects unusually large orders at checkout to categorize them (e.g., "House Party"). Later, if your cart contents match a past anomaly, "Party Mode" is triggered to suggest the rest of the items from that event!
 3. **Incognito Mode**: Buy items privately without them influencing your personalisation profile.
+4. **Swiggy MCP Integration**: Uses the Model Context Protocol to seamlessly connect to your live Swiggy account via OAuth 2.1.
 
 ## Tech Stack
 
@@ -51,7 +52,13 @@ If you check out with significantly more items than your 90-day average, an anom
    npm run dev
    ```
 
-4. Open `http://localhost:3000` in your browser.
+4. **Configure Swiggy MCP (Optional)**: To use real Swiggy account data instead of the local SQLite DB, create a `.env` file in the root directory and add your Client ID:
+   ```env
+   SWIGGY_CLIENT_ID=your_client_id_here
+   ```
+   If not set, the app will use a mock OAuth flow and local data fallback.
+
+5. Open `http://localhost:3000` in your browser.
 
 ## Database Schema Highlights
 
