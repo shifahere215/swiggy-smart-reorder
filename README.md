@@ -20,7 +20,7 @@ This MVP is built for a mobile-first grocery app (like Instamart or Kirana) base
 ## Screenshots
 
 ### Home & Nudge Card
-The nudge card appears on the home feed when you have items that are overdue based on your normal buying rhythm.
+The nudge card appears on the home feed when you have items that are overdue based on your normal buying rhythm. Now supports sub-profiles like "Mother's tea leaves".
 
 ![Home Page & Nudges](assets/screenshot_home.png)
 
@@ -33,6 +33,18 @@ A toggle in the cart allows you to activate incognito mode. The theme shifts, an
 If you check out with significantly more items than your 90-day average, an anomaly sheet surfaces to categorize the bulk order.
 
 ![Anomaly Sheet](assets/screenshot_anomaly_sheet.png)
+
+### Party Mode (Cart Similarity)
+If you add a few items that match a previously categorized anomaly (like a "House Party"), a Party Mode suggestion card appears to help you quick-add the rest!
+
+![Party Mode Suggestion](assets/screenshot_party_mode.png)
+
+### Live Demos
+**Full Feature Demo:**
+![Smart Reorder Demo](assets/smart_reorder_demo.webp)
+
+**Swiggy MCP OAuth Connect Flow:**
+![Swiggy OAuth Demo](assets/swiggy_oauth_demo.webp)
 
 ## Getting Started
 
